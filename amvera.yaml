@@ -1,0 +1,22 @@
+# Amvera Cloud — Контур 1: система учёта научной работы (FastAPI + SPA)
+# Формат согласно официальной документации: https://docs.amvera.ru/applications/environments/python-pip.html
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: "3.11"
+
+build:
+  requirementsPath: backend/requirements.txt
+  useCache: false
+
+run:
+  scriptName: app.py
+  containerPort: 8080
+  persistenceMount: /data
+
+environment:
+  - name: APP_TITLE
+    value: "Наука · Контур 1"
+  - name: SITE_API_URL
+    value: "https://nauka-site-patfiz.waw0.amvera.tech/events.json"
