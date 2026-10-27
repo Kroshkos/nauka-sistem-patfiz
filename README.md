@@ -22,7 +22,7 @@
 
 - **Frontend:** vanilla JS SPA без сборки — модули `js/icons.js`, `js/data.js`, `js/core.js`, `js/pages.js`;
   дизайн-система в `css/style.css` (тёмная/светлая темы, CSS-переменные, адаптив до мобильных).
-- **Backend:** FastAPI (`app/main.py`) — отдаёт SPA, статика смонтирована на `/static`.
+- **Backend:** FastAPI (`backend/main.py`) — отдаёт SPA, статика смонтирована на `/static`.
 - Демо-данные живут в `js/data.js`; состояние страницы/темы сохраняется в localStorage.
 
 ## JSON API (для интеграции контуров)
@@ -42,5 +42,5 @@ python -m uvicorn app.main:app --reload --port 8080
 
 ## Деплой на Amvera
 
-Конфигурация в `amvera.yml`: Python 3.11, точка входа `app/main.py`, порт 8080.
+Конфигурация в `amvera.yml`: Python 3.11, точка входа `app.py` (импортирует `backend/main.py`), порт 8080.
 Старое демо сохранено: `/assets/legacy-demo.html`.

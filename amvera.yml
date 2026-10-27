@@ -7,10 +7,13 @@ setup:
   permissions: regular
 build:
   commands:
-    - pip install -r app/requirements.txt
+    - pip install -r backend/requirements.txt
+meta:
+  module: naumenko-ps/amvera-runtime-python
+  runtime: python3.11
 run:
   type: python
-  path: app/main.py
+  path: app.py
   shell: false
 port: 8080
 environment:

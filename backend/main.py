@@ -97,7 +97,11 @@ def events_from_contour2(refresh: int = 0):
             SITE_API_URL, headers={"User-Agent": "nauka-contour1/1.0"}
         )
         with urllib.request.urlopen(req, timeout=6) as r:
-            items = json.loads(r.read().decode("utf-8"))
+            raw = r.read().decode("utf-8")
+        if raw.lstrip().startswith("["):
+            items = json.loads(raw)  # events.json Контур 2 задеплоен
+        else:
+            raise ValueError("Контур 2 ещё не отдаёт events.json (старый билд)")
         data = {
             "source": SITE_API_URL,
             "live": True,
