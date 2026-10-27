@@ -11,6 +11,7 @@ function renderPage(){
   case 'analytics':V.innerHTML=pageAnalytics(s);break;
   case 'reports':V.innerHTML=pageReports();break;
   case 'events':V.innerHTML=pageEvents();break;
+  case 'roles':V.innerHTML=pageRoles();break;
  }
  requestAnimationFrame(()=>$$('.bar-fill[data-w]').forEach(b=>b.style.width=b.dataset.w+'%'));
 }
@@ -76,7 +77,7 @@ function pageWorks(){
      <td>${person(w.lead).name}<div class="t-sub">${person(w.lead).deg}</div></td>
      <td><span class="badge ${stat(w.status).cls}">${stat(w.status).name}</span></td>
      <td class="mono" style="${w.due&&w.status!=='done'&&new Date(w.due)<new Date()?'color:var(--danger);font-weight:700':''}">${w.due?fmtDate(w.due):'—'}</td>
-     <td><div class="row-actions"><button class="mini" data-edit="${w.id}">${ic('edit')}</button><button class="mini del" data-del="${w.id}">${ic('trash')}</button></div></td></tr>`).join('')}</tbody></table></div>`
+     <td><div class="row-actions">${canEditWork(w)?`<button class="mini" data-edit="${w.id}" title="Редактировать">${ic('edit')}</button>`:''}${can('delete')?`<button class="mini del" data-del="${w.id}" title="Удалить">${ic('trash')}</button>`:`<span class="lock-ic" title="Доступно только просмотр">—</span>`}</div></td></tr>`).join('')}</tbody></table></div>`
  :emptyBox('Ничего не найдено — измените фильтры')}`;
 }
 function bindWorks(){
@@ -90,23 +91,31 @@ function bindWorks(){
  $$('[data-open]').forEach(tr=>{tr.style.cursor='pointer';tr.onclick=()=>openWorkModal(tr.dataset.open)});
 }
 function delWork(id){const w=byId(id);if(!w)return;
+ if(!can('delete')||!canEditWork(w)){toast('Недостаточно прав для удаления','err');return}
  confirmBox('Удалить работу?','«'+w.title+'» будет удалена без возможности восстановления.',()=>{
    WORKS=WORKS.filter(x=>x.id!==id);toast('Работа удалена','warn');renderPage()})}
 
 /* ---------- Модалка работы ---------- */
 function openWorkModal(id){
  const w=id?byId(id):null;
+ if(w&&!canEditWork(w)){ // защита: просмотр без права записи
+   toast('Запись доступна только для просмотра','warn');
+ }
+ const ro=w&&!canEditWork(w);
+ const editable=!ro&&state.user;
+ const deptsOK=userDepts();
  const fld=(l,n,inner)=>`<div class="field" data-f="${n}"><label>${l}</label>${inner}<span class="err">Обязательное поле</span></div>`;
  $('#modal-root').innerHTML=`<div class="modal-bg" id="mbg"><div class="modal">
- <div class="modal-head"><b>${w?'Редактировать работу':'Новая научная работа'}</b><button class="icon-btn" id="mx">${ic('x')}</button></div>
+ <div class="modal-head"><b>${w?(ro?'Просмотр работы':'Редактировать работу'):'Новая научная работа'}</b><button class="icon-btn" id="mx">${ic('x')}</button></div>
+ ${ro?`<div class="modal-body" style="color:var(--muted)">Роль «${ROLES[state.user.role].name}» не может изменять эту запись. Обратитесь к руководителю подразделения или в отдел науки.</div>`:`
  <div class="modal-body">
    ${fld('Название','title',`<input id="m-title" value="${esc(w&&w.title||'')}" placeholder="Тема исследования…">`)}
    <div class="frow">
      ${fld('Тип','type',`<select id="m-type">${WORK_TYPES.map(t=>`<option value="${t.id}" ${w&&w.type===t.id?'selected':''}>${t.name}</option>`).join('')}</select>`)}
-     ${fld('Статус','status',`<select id="m-status">${STATUSES.map(s=>`<option value="${s.id}" ${w&&w.status===s.id?'selected':''}>${s.name}</option>`).join('')}</select>`)}
+     ${fld('Статус','status',`<select id="m-status">${STATUSES.map(s=>`<option value="${s.id}" ${w&&w.status===s.id?'selected':''} ${s.id==='done'&&!can('approve')?'disabled':''}>${s.name}${s.id==='done'&&!can('approve')?' (только руководитель/наука)':(s.id==='review'&&state.user.role==='staff')?' → отправлено на проверку':''}</option>`).join('')}</select>`)}
    </div>
    <div class="frow">
-     ${fld('Подразделение','dept',`<select id="m-dept">${DEPTS.map(d=>`<option value="${d.id}" ${w&&w.dept===d.id?'selected':''}>${d.name}</option>`).join('')}</select>`)}
+     ${fld('Подразделение','dept',`<select id="m-dept">${DEPTS.map(d=>`<option value="${d.id}" ${w&&w.dept===d.id?'selected':''} ${deptsOK.includes(d.id)?'':'disabled'}>${d.name}${deptsOK.includes(d.id)?'':' (нет доступа)'}</option>`).join('')}</select>`)}
      ${fld('Руководитель','lead',`<select id="m-lead">${PEOPLE.map(p=>`<option value="${p.id}" ${w&&w.lead===p.id?'selected':''}>${p.name} (${p.deg})</option>`).join('')}</select>`)}
    </div>
    <div class="frow">
@@ -119,12 +128,13 @@ function openWorkModal(id){
    </div>
    ${fld('Теги (через запятую)','tags',`<input id="m-tags" value="${esc((w&&w.tags||[]).join(', '))}" placeholder="кардиология, РНФ">`)}
  </div>
- <div class="modal-foot"><button class="btn ghost" id="mc">Отмена</button><button class="btn primary" id="ms">${ic('check')}${w?'Сохранить':'Создать'}</button></div>
+ <div class="modal-foot"><button class="btn ghost" id="mc">Отмена</button><button class="btn primary" id="ms">${ic('check')}${w?'Сохранить':'Создать'}</button></div>`}
  </div></div>`;
  const close=()=>$('#modal-root').innerHTML='';
- $('#mx').onclick=close;$('#mc').onclick=close;
+ $('#mx').onclick=close;const mcEl=$('#mc');if(mcEl)mcEl.onclick=close;
  $('#mbg').onclick=e=>{if(e.target.id==='mbg')close()};
  document.addEventListener('keydown',function h(e){if(e.key==='Escape'){close()}document.removeEventListener('keydown',h)});
+ if(ro||!editable)return;
  $('#ms').onclick=()=>{
    const g=id=>$('#m-'+id).value.trim();
    const data={title:g('title'),type:g('type'),status:g('status'),dept:g('dept'),lead:g('lead'),
@@ -133,8 +143,9 @@ function openWorkModal(id){
    let bad=false;
    [['title',data.title],['year',data.year]].forEach(([n,v])=>{const f=$('[data-f="'+n+'"]');f.classList.toggle('invalid',!v);if(!v)bad=true});
    if(bad){toast('Заполните обязательные поля','err');return}
+   if(!deptsOK.includes(data.dept)){toast('Нет прав для этого подразделения','err');return}
    if(w){Object.assign(w,data);toast('Изменения сохранены')}
-   else{data.id='w'+Date.now();WORKS.unshift(data);toast('Работа добавлена')}
+   else{data.id='w'+Date.now();data.createdBy=state.user.id;WORKS.unshift(data);toast('Работа добавлена')}
    close();render();
  };
 }
@@ -165,6 +176,8 @@ function bindKanban(){
    col.ondragover=e=>{e.preventDefault();col.classList.add('over')};
    col.ondragleave=()=>col.classList.remove('over');
    col.ondrop=e=>{e.preventDefault();col.classList.remove('over');const w=byId(state.drag);if(!w)return;
+     if(!canEditWork(w)){toast('Роль «'+ROLES[state.user.role].name+'» не может перемещать эту карточку','err');renderPage();return}
+     if(col.dataset.col==='done'&&!can('approve')){toast('Статус «Завершена» устанавливает руководитель подразделения или отдел науки','err');renderPage();return}
      w[state.kanbanTab]=col.dataset.col;toast('Перемещено: '+stat(w.status).name);renderPage()};
  });
 }
@@ -241,7 +254,7 @@ function pageAnalytics(s){
 function pageReports(){
  return `<div class="toolbar" style="justify-content:space-between">
    <div class="chips">${[['reports','Отчёты'],['templates','Шаблоны']].map(([k,n])=>`<button class="chip ${state.reportTab===k?'on':''}" data-rtab="${k}">${n}</button>`).join('')}</div>
-   <button class="btn primary" id="gen-rep">${ic('download')}Сформировать сводный отчёт</button></div>
+   <button class="btn primary" id="gen-rep"${can('export')?'':' disabled title="Недостаточно прав — роль наблюдателя"'}>${ic('download')}Сформировать сводный отчёт</button></div>
  ${state.reportTab==='reports'?`<div class="table-wrap"><table><thead><tr><th>Отчёт</th><th>Подразделение</th><th>Год</th><th>Позиций</th><th>Готовность</th><th>Статус</th></tr></thead>
   <tbody>${REPORTS.map(r=>`<tr><td style="font-weight:600">${esc(r.title)}</td><td><span class="pill-dept">${dept(r.dept).short}</span></td>
    <td class="mono">${r.year}</td><td class="mono">${r.items}</td>
@@ -313,13 +326,39 @@ async function loadEvents(force=false){
   if(state.page==='events')renderPage();
 }
 
+/* ---------- Роли и доступ (админ) ---------- */
+const PERM_LABELS={see:'Просмотр',create:'Создание',edit:'Редактирование',delete:'Удаление',approve:'Завершение/проверка',export:'Экспорт отчётов',manage_users:'Управление пользователями'};
+function pageRoles(){
+ if(!state.user||state.user.role!=='admin')return emptyBox('Раздел доступен только администратору системы');
+ return `<div class="card" style="border-left:3px solid var(--accent);display:flex;gap:12px;align-items:center">
+   ${ic('shield')}<div><b>Матрица ролей и прав доступа</b>
+   <div class="t-sub">Пра применяются на клиенте (UI) и продублируются в API (FastAPI dependency) при переходе на БД. Смена роли — клик по чипу пользователя слева внизу.</div></div></div>
+ <div class="grid g2">${Object.entries(ROLES).map(([k,r])=>`
+   <div class="card"><h3>${ic(r.ic)} ${r.name}${k==='admin'?' <span class="badge b-ok">вы сейчас</span>':''}</h3>
+    <p class="t-sub" style="line-height:1.6;margin-bottom:10px">${r.desc}</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${Object.keys(PERM_LABELS).map(p=>{
+      const on=(PERMS[k]||[]).includes(p);
+      return `<span class="pill-dept" style="${on?'color:var(--ok);border-color:var(--ok)44':'opacity:.4;text-decoration:line-through'}">${on?'✓':'✕'} ${PERM_LABELS[p]}</span>`}).join('')}</div>
+   </div>`).join('')}</div>
+ <div class="card"><h3>${ic('users')} Демо-пользователи</h3>
+  <div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Роль</th><th>Подразделение</th><th>Права</th><th></th></tr></thead>
+  <tbody>${DEMO_USERS.map(u=>{const r=ROLES[u.role];return `<tr>
+    <td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:10.5px;background:${r.color}">${u.init}</div><b>${esc(u.name)}</b></div></td>
+    <td><span class="badge" style="color:${r.color};border-color:${r.color}55;background:${r.color}14">${r.name}</span></td>
+    <td>${u.dept?dept(u.dept).short:'—'}</td>
+    <td class="t-sub">${(PERMS[u.role]||[]).length} из ${Object.keys(PERM_LABELS).length}</td>
+    <td><button class="btn sm ghost" data-asuser="${u.id}">${ic('login',13)} Войти как этот пользователь</button></td></tr>`}).join('')}</tbody></table></div></div>`;
+}
+
 /* ---------- глобальные обработчики ---------- */
 function bindGlobal(){
  document.addEventListener('click',e=>{
    const rt=e.target.closest('[data-rtab]');if(rt){state.reportTab=rt.dataset.rtab;renderPage();return}
-   if(e.target.closest('.tpl-use')){toast('Шаблон скопирован в «Мои документы» (демо)');return}
+   const au=e.target.closest('[data-asuser]');if(au){const u=DEMO_USERS.find(x=>x.id===au.dataset.asuser);saveUser(u);persist();toast('Вы вошли как '+u.name+' — '+ROLES[u.role].name);render();return}
+   if(e.target.closest('.tpl-use')){can('export')?toast('Шаблон скопирован в «Мои документы» (демо)'):toast('Недостаточно прав','err');return}
    if(e.target.closest('#sync-ev')){loadEvents(true).then(()=>toast(LIVE_META.live?'Получены живые данные Контура 2':'Контур 2 недоступен — показан демо-набор', LIVE_META.live?'ok':'warn'));return}
    const gen=e.target.closest('#gen-rep');if(gen){
+     if(!can('export')){toast('Недостаточно прав для формирования отчётов','err');return}
      gen.disabled=true;gen.textContent='Формируем…';
      setTimeout(()=>{toast('Сводный отчёт 2026 готов — CSV выгружен');gen.disabled=false;
        gen.innerHTML=ic('download')+'Сформировать сводный отчёт';csvExport()},900);

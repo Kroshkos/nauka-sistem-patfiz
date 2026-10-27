@@ -26,5 +26,22 @@ const ICONS={
  star:'<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8z"/>',
  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
  arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',
+ logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+ login:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>',
+ key:'<circle cx="8" cy="14" r="4"/><path d="m11 11 8-8m-3 3 2 2m-5 1 2 2"/>',
+ eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+ dot:'<circle cx="12" cy="12" r="4"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
 };
-function ic(n,s){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'+(s?' width="'+s+'" height="'+s+'"':'')+'>'+(ICONS[n]||'')+'</svg>'}
+const _iconWarned=new Set();
+function ic(n,s){
+ if(!ICONS[n]){ // защита от «пустых» иконок: предупреждаем один раз, рисуем заглушку
+   if(!_iconWarned.has(n)){_iconWarned.add(n);console.warn('[icons] неизвестная иконка: '+n);}
+   n='dot';
+ }
+ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'+(s?' width="'+s+'" height="'+s+'"':'')+'>'+ICONS[n]+'</svg>';
+}
+/* Инициализация иконок, вставленных в HTML через data-icon (декомпозиция без innerHTML-сборки) */
+function hydrateIcons(root){(root||document).querySelectorAll('[data-icon]').forEach(el=>{
+ el.innerHTML=ic(el.dataset.icon,el.dataset.iconSize?+el.dataset.iconSize:null);});}

@@ -9,7 +9,7 @@ import os
 import urllib.request
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +31,48 @@ app.add_middleware(
     allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# --- Система ролей (RBAC): единая матрица для фронта и API ---
+ROLE_PERMS = {
+    "admin":  ["see", "edit", "create", "delete", "approve", "export", "manage_users"],
+    "science":["see", "edit", "create", "delete", "approve", "export"],
+    "head":   ["see", "edit", "create", "approve", "export"],
+    "staff":  ["see", "edit", "create", "export"],
+    "viewer": ["see"],
+}
+
+@app.get("/api/roles")
+def roles_matrix():
+    """Матрица ролей/прав — используется SPA и внешними системами."""
+    return {"roles": ROLE_PERMS}
+
+
+@app.get("/api/me")
+def whoami(x_role: str = Header(default="viewer"), x_dept: str = Header(default="")):
+    """Текущая роль запроса + её права (эмуляция токена до подключения auth)."""
+    role = x_role if x_role in ROLE_PERMS else "viewer"
+    return {"role": role, "dept": x_dept or None, "perms": ROLE_PERMS[role]}
+
+
+def require_perm(perm: str, role: str):
+    if perm not in ROLE_PERMS.get(role, []):
+        raise HTTPException(403, detail=f"Роль «{role}» не имеет права «{perm}»")
+
+
+@app.post("/api/works")
+def create_work(payload: dict, x_role: str = Header(default="viewer")):
+    """Создание работы (демо-валидация прав; в проде — запись в PostgreSQL)."""
+    require_perm("create", x_role)
+    if not payload.get("title"):
+        raise HTTPException(422, detail="Поле «title» обязательно")
+    return {"ok": True, "id": f"w{os.getpid()}{len(payload)}", "role": x_role}
+
+
+@app.delete("/api/works/{work_id}")
+def delete_work(work_id: str, x_role: str = Header(default="viewer")):
+    require_perm("delete", x_role)
+    return {"ok": True, "deleted": work_id, "role": x_role}
 
 
 @app.get("/")
