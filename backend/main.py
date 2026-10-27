@@ -22,7 +22,7 @@ SITE_API_URL = os.getenv(
 )
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title=APP_TITLE)
+app = FastAPI(root_path=os.getenv("ROOT_PATH", ""), title=APP_TITLE)
 
 # CORS: Контур 2 может обращаться к нашему API напрямую
 app.add_middleware(
