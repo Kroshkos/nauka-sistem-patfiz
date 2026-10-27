@@ -1,7 +1,7 @@
 """Контур 1 — nauka-sistem-patfiz.
 
 Система учёта и ведения научной работы на кафедрах и подразделениях:
-SPA-интерфейс (app/static) + JSON API для интеграции с Контуром 2
+SPA-интерфейс (backend/static) + JSON API для интеграции с Контуром 2
 (мероприятия: https://github.com/Kroshkos/nauka-site-patfiz).
 """
 import json

@@ -1,21 +1,30 @@
-setup:
-  go: "off"
-  python: "3.11"
-  nodesource: "off"
-  php: "off"
-  ruby: "off"
-  permissions: regular
-build:
-  commands:
-    - pip install -r backend/requirements.txt
+# Amvera Cloud — Контур 1: система учёта научной работы (FastAPI + SPA)
+# Документация: https://amvera.ru/docs
 meta:
   module: naumenko-ps/amvera-runtime-python
   runtime: python3.11
+
+setup:
+  go: "off"
+  nodesource: "off"
+  php: "off"
+  ruby: "off"
+  python: "3.11"
+  permissions: regular
+
+build:
+  commands:
+    - pip install -r backend/requirements.txt
+
 run:
-  type: python
+  type: python          # Amvera выполнит: python3 <path> из корня /app
   path: app.py
   shell: false
-port: 8080
+
+port: 8080              # приложение слушает переменную окружения PORT
+
 environment:
   - name: APP_TITLE
     value: "Наука · Контур 1"
+  - name: SITE_API_URL
+    value: "https://nauka-site-patfiz.waw0.amvera.tech/events.json"
