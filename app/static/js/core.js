@@ -104,4 +104,5 @@ window.addEventListener('DOMContentLoaded',()=>{
  const mr=document.createElement('div');mr.id='modal-root';document.body.appendChild(mr);
  const tl=document.createElement('div');tl.id='toasts';document.body.appendChild(tl);
  bindGlobal();render();
+ if(typeof loadEvents==='function')loadEvents();   // фоновая загрузка мероприятий Контура 2
 });

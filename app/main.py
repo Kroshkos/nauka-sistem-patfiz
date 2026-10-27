@@ -4,18 +4,33 @@
 SPA-интерфейс (app/static) + JSON API для интеграции с Контуром 2
 (мероприятия: https://github.com/Kroshkos/nauka-site-patfiz).
 """
+import json
 import os
+import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 APP_TITLE = os.getenv("APP_TITLE", "Наука · Контур 1")
 PORT = int(os.getenv("PORT", "8080"))
+SITE_API_URL = os.getenv(
+    "SITE_API_URL",
+    "https://nauka-site-patfiz.waw0.amvera.tech/events.json",
+)
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title=APP_TITLE)
+
+# CORS: Контур 2 может обращаться к нашему API напрямую
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
@@ -66,12 +81,60 @@ def stats():
 
 
 @app.get("/api/events")
-def events_from_contour2():
-    """Мероприятия из Контура 2 (для отчётов). Заменит proxy на nauka-site API."""
-    return JSONResponse({
-        "source": "nauka-site-patfiz.waw0.amvera.tech",
-        "items": [],
-    })
+def events_from_contour2(refresh: int = 0):
+    """Прокси Контура 2: тянем мероприятия из nauka-site (events.json).
+
+    Ответ кэшируется на 5 минут; ?refresh=1 принудительно обновляет кэш.
+    При недоступности Контура 2 — fallback-набор, интерфейс не ломается.
+    """
+    global _EVENTS_CACHE
+    now = __import__("time").time()
+    if _EVENTS_CACHE and not refresh and now - _EVENTS_CACHE["ts"] < 300:
+        return JSONResponse(_EVENTS_CACHE["data"])
+    data = None
+    try:
+        req = urllib.request.Request(
+            SITE_API_URL, headers={"User-Agent": "nauka-contour1/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=6) as r:
+            items = json.loads(r.read().decode("utf-8"))
+        data = {
+            "source": SITE_API_URL,
+            "live": True,
+            "cached_at": int(now),
+            "items": items,
+        }
+    except Exception:
+        data = {
+            "source": "fallback",
+            "live": False,
+            "cached_at": int(now),
+            "items": FALLBACK_EVENTS,
+        }
+    _EVENTS_CACHE = {"ts": now, "data": data}
+    return JSONResponse(data)
+
+
+FALLBACK_EVENTS = [
+    {"id": 1, "title": "Конференция «Актуальные проблемы военной медицины»",
+     "date": "2026-11-18", "type_name": "Конференция", "color": "#5b8cff",
+     "place": "Главный клинический корпус", "registered": 187, "capacity": 220,
+     "status": "open", "organizer": "Отдел научной работы"},
+    {"id": 2, "title": "Школа молодого учёного: дизайн исследований",
+     "date": "2026-11-05", "type_name": "Школа", "color": "#22c55e",
+     "place": "УЛК, ауд. 312", "registered": 58, "capacity": 60,
+     "status": "open", "organizer": "НОМИ"},
+    {"id": 5, "title": "Конкурс «Наука. Медицина. Инновации»",
+     "date": "2026-12-10", "type_name": "Конкурс", "color": "#ef4444",
+     "place": "Клуб академии", "registered": 96, "capacity": 150,
+     "status": "open", "organizer": "Отдел науки + НОМИ"},
+    {"id": 9, "title": "Выставка научных разработок ВМедА",
+     "date": "2026-12-15", "type_name": "Выставка", "color": "#14b8a6",
+     "place": "Фойе главного корпуса", "registered": 0, "capacity": 400,
+     "status": "announce", "organizer": "Отдел научной работы"},
+]
+
+_EVENTS_CACHE = None
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

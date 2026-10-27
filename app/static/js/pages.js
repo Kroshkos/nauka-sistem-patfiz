@@ -268,21 +268,49 @@ const SITE_EVENTS=[
  {t:'Семинар «Биоинформатика в клинической практике»',d:'2026-12-05',pl:'НИЛ БМЕ',st:'Сбор заявок',c:'#4f8cff',n:38},
  {t:'Конкурс студенческих НИР «Ломоносовские чтения»',d:'2027-01-22',pl:'Кафедра терапии',st:'Анонс',c:'#7c5cff',n:120},
 ];
-function pageEvents(){
- return `<div class="card" style="display:flex;gap:12px;align-items:center;border-left:3px solid var(--accent)">
-   ${ic('link')}<div><b>Данные синхронизируются с Контуром 2</b>
-   <div class="t-sub">Сайт мероприятий: <a href="https://nauka-site-patfiz.waw0.amvera.tech" target="_blank">nauka-site-patfiz.waw0.amvera.tech</a> · API: GET /api/events</div></div>
-   <button class="btn sm ghost" id="sync-ev" style="margin-left:auto">${ic('arrow')} Обновить</button></div>
- <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">${SITE_EVENTS.map(e=>{
-   const dd=new Date(e.d);const days=Math.round((dd-new Date())/864e5);
-   return `<div class="card"><div style="display:flex;gap:14px;align-items:start">
+let LIVE_EVENTS = null;         // кэш живых данных из /api/events
+let LIVE_META = {live:false, source:''};
+
+function evStatusBadge(e){
+  const map={open:['Регистрация открыта','#2dd4a0'],full:['Мест нет','#f4645f'],announce:['Анонс','#7c5cff']};
+  const [t,c]=map[e.status]||['—','#888'];
+  return `<span class="badge" style="color:${c};border-color:${c}55;background:${c}12">${t}</span>`;
+}
+function eventCard(e){
+  const dd=new Date(e.date);const days=Math.round((dd-new Date())/864e5);
+  const cap=e.capacity||0, reg=e.registered||0;
+  const pct=cap?Math.min(100,Math.round(reg/cap*100)):0;
+  const siteUrl='https://nauka-site-patfiz.waw0.amvera.tech/#e'+(e.id??'');
+  return `<div class="card"><div style="display:flex;gap:14px;align-items:start">
     <div style="text-align:center;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 13px;flex-shrink:0">
-      <div style="font-size:20px;font-weight:800;color:${e.c}">${dd.getDate()}</div>
+      <div style="font-size:20px;font-weight:800;color:${e.color||'#4f8cff'}">${dd.getDate()}</div>
       <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase">${dd.toLocaleDateString('ru-RU',{month:'short'})}</div></div>
-    <div style="min-width:0"><div style="font-weight:700;font-size:14px">${e.t}</div>
-     <div class="t-sub" style="margin-top:3px">${e.pl}</div>
-     <div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap"><span class="badge" style="color:${e.c};border-color:${e.c}55;background:${e.c}12">${e.st}</span>
-     <span class="pill-dept">${days>0?'через '+days+' дн.':'прошло'}</span><span class="pill-dept">${e.n} участников</span></div></div></div></div>`}).join('')}</div>`;
+    <div style="min-width:0"><div style="font-weight:700;font-size:14px">${esc(e.title)}</div>
+     <div class="t-sub" style="margin-top:3px">${esc(e.place||'')}</div>
+     ${cap?`<div style="margin-top:8px;height:5px;border-radius:4px;background:var(--panel2);overflow:hidden"><div style="height:100%;width:${pct}%;background:${e.color||'#4f8cff'}"></div></div>
+     <div class="t-sub" style="margin-top:4px">${reg}/${cap} мест · ${pct}%</div>`:''}
+     <div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap">${evStatusBadge(e)}
+     <span class="pill-dept">${days>0?'через '+days+' дн.':'прошло'}</span>
+     ${e.type_name?`<span class="pill-dept">${esc(e.type_name)}</span>`:''}
+     <a class="btn sm ghost" href="${siteUrl}" target="_blank" style="margin-left:auto">${ic('link')} На сайте</a></div></div></div></div>`;
+}
+function pageEvents(){
+  const items=LIVE_EVENTS&&LIVE_EVENTS.length?LIVE_EVENTS:SITE_EVENTS.map(e=>({title:e.t,date:e.d,place:e.pl,color:e.c,registered:e.n,capacity:0,status:e.st==='Регистрация открыта'?'open':e.st==='Скоро'?'announce':'open',type_name:''}));
+  const tag=LIVE_META.live?'<span class="badge b-ok">живые данные · Контур 2</span>':'<span class="badge b-warn">демо-набор (Контур 2 недоступен)</span>';
+  return `<div class="card" style="display:flex;gap:12px;align-items:center;border-left:3px solid var(--accent)">
+   ${ic('link')}<div><b>Данные синхронизируются с Контуром 2</b>
+   <div class="t-sub">Сайт мероприятий: <a href="https://nauka-site-patfiz.waw0.amvera.tech" target="_blank">nauka-site-patfiz.waw0.amvera.tech</a> · API: GET /api/events ${tag}</div></div>
+   <button class="btn sm ghost" id="sync-ev" style="margin-left:auto">${ic('arrow')} Обновить</button></div>
+ <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">${items.map(eventCard).join('')}</div>`;
+}
+async function loadEvents(force=false){
+  try{
+    const r=await fetch('/api/events'+(force?'?refresh=1':''),{cache:'no-store'});
+    if(!r.ok)throw 0;
+    const d=await r.json();
+    if(Array.isArray(d.items)&&d.items.length){LIVE_EVENTS=d.items;LIVE_META={live:!!d.live,source:d.source||''};}
+  }catch(e){LIVE_META={live:false,source:'fallback'}}
+  if(state.page==='events')renderPage();
 }
 
 /* ---------- глобальные обработчики ---------- */
@@ -290,7 +318,7 @@ function bindGlobal(){
  document.addEventListener('click',e=>{
    const rt=e.target.closest('[data-rtab]');if(rt){state.reportTab=rt.dataset.rtab;renderPage();return}
    if(e.target.closest('.tpl-use')){toast('Шаблон скопирован в «Мои документы» (демо)');return}
-   if(e.target.closest('#sync-ev')){toast('Синхронизация с Контуром 2 выполнена');return}
+   if(e.target.closest('#sync-ev')){loadEvents(true).then(()=>toast(LIVE_META.live?'Получены живые данные Контура 2':'Контур 2 недоступен — показан демо-набор', LIVE_META.live?'ok':'warn'));return}
    const gen=e.target.closest('#gen-rep');if(gen){
      gen.disabled=true;gen.textContent='Формируем…';
      setTimeout(()=>{toast('Сводный отчёт 2026 готов — CSV выгружен');gen.disabled=false;
